@@ -1,0 +1,82 @@
+
+
+n - Employées
+
+Luc  - 20h - x1
+Jean - 15H - x2
+Marc - 25h - x3
+
+m - Jours
+Lundi Mardi Mercredi...
+
+o - demi-heures
+8h30 - 17h
+
+[
+    [8h30, 9h, 9h30, 10h, 10h30, 11h, 11h30, 12h, 12h30, 13h, 13h30, 14h, 14h30, 15h, 15h30, 16h, 16h30],
+    [8h30, 9h, 9h30, 10h, 10h30, 11h, 11h30, 12h, 12h30, 13h, 13h30, 14h, 14h30, 15h, 15h30, 16h, 16h30]
+
+
+
+
+]
+minimumPplCre = [1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2]
+
+
+variable x_n_m_o défini dans {0, 1}
+variable start_n_m_o défini dans {0, 1}
+
+x_0_0_0 = Luc est présent Ludni à 8h30
+
+Pour chaque Jour j dans m
+Pour chaque creneau k dans o
+contrainte0_j_k = Contraints()
+for i in range(n):
+    contrainte0_j_k += x_i_j_k
+contrainte0_j_k >= minimumPplCre[k]
+
+
+[0, 1]
+y > (1 - 0)
+
+Pour chaque Employee i dans n
+Pour chaque Jour j dans m
+for k in range(o):
+    if (k == 0)
+        start_i_j_k = x_i_j_k
+    else:
+        #k - 1 doit valoir 0 et k doit valoir 1 pour que start soit contraint de valoir 1
+        start_i_j_k >= (1 - x_i_j_(k-1)) + x_i_j_k - 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+contrainte0_j
+for i in range(n):
+    for k in range(0, 7): #De 8h30 à 12h
+        contrainte0_j += x_i_j_k
+
+contrainte0_j / 7 >= 1 #Signifie qu'il faut au moins un employé chaque jour sur le créneau 8h30 à 12h
+
+contrainte1_j
+for i in range(n):
+    for k in range(7, 12): #De 12h à 14h30h
+        contrainte1_j += x_i_j_k
+
+contrainte1_j / 5 >= 3 #Signifie qu'il faut au moins 3 employés chaque jour sur le créneau 12h à 14h30h
+
+contrainte2_j
+for i in range(n):
+    for k in range(12, 17): #De 14h30 à 17h
+        contrainte2_j += x_i_j_k
+
+contrainte2_j / 5 >= 1 #Signifie qu'il faut au moins 3 employés chaque jour sur le créneau 14h30 à 17h
