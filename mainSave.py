@@ -13,8 +13,8 @@ favoriseBreakNearSunday = True
 repartir = True
 
 #Data of the problem
-nbWeek = 2 #Nb semaines
-m = nbWeek * 6 #Nb jours
+nbWeek = 1 #Nb semaines
+m = 6 #Nb jours
 
 #+1 pour la pause de 30min
 maxHalfHour = 5*2 + 1 #5 hours
@@ -88,6 +88,7 @@ allowLateStart = True
 startHour = [0, 0, 0, 0, 0, 7, 0]
 
 #Pour forcer un employee à commencer n fois pendant la semaine
+#TODO: rendre ça par semaine
 forceEmployeeNbStart = False
 nbStartRequired = [0, 0, 0, 0, 0, 0, 0]
 
@@ -96,10 +97,12 @@ activateNegativePair = True
 negativePairs = [[2, 4], [3, 6], [0, 1]]
 
 #Pour forcer un employee à avoir son lundi ou son samedi
-forceSundayBreak = True
+#TODO: faire ça par semaine et pas pour tout le mois
+forceSundayBreak = False
 # shoudlForceSunday = [False, False, False, False, False, False, False]
 
 
+#TODO: Rendre ça par semaine
 #Pour indiquer la non presence d'une personne à parti/jusqu'a une certaine heure
 activateRestrictions = True
 # endBefore = [[], [], [], [], [], [], [["Mardi", "18h30"]]]
@@ -110,11 +113,12 @@ activateRestrictions = True
 
 forceSameStartDuringWeek = True
 
+#TODO: Par semaine
 # ["Chloé", "Maeva", "Johanne", "Alexis", "Thomas", "Line", "Philippine"]
-forceEarly = True
+# forceEarly = True
 # needStartEarly = [True, False, False, False, False, False, False]
 
-forceLate = True
+# forceLate = True
 # needStartLate = [False, True, False, False, False, False, False]
 
 print(endBefore)
@@ -164,73 +168,83 @@ OK - favoriser de le coller au dimanche
 model = LpProblem(name="Café", sense=LpMinimize)
 
 # Create a dictionary to store the variables
-x = LpVariable.dicts("x", (range(n), range(m), range(o)), cat=LpBinary)
+x = LpVariable.dicts("x", (range(n), range(nbWeek), range(m), range(o)), cat=LpBinary)
 
 
 #Chaque demi heure doit avoir au moins le nombre d'employee minimum de minimumPplCre
 if repartir:
     maxEmployee = LpVariable("maxEmployee", lowBound=0, upBound=n, cat=LpContinuous)
 
-respectedCharge = LpVariable.dicts("respectedCharge", (range(m), range(o)), lowBound=0, upBound=3, cat=LpContinuous)
+#On doit respecter la charge à chaque demi heure de chaque jour de chaque semaine
+respectedCharge = LpVariable.dicts("respectedCharge", (range(nbWeek), range(m), range(o)), lowBound=0, upBound=3, cat=LpContinuous)
 for j in range(m):
     for k in range(o):
-        weekDay = j%6
+        for week in range(nbWeek):
 
-        currentConstantList = []
+            currentConstantList = []
 
-        if weekDay == 0:
-            currentConstant = minimumPplCreMonday[k]
-        elif weekDay == formationDayIndex:
-            currentConstant = minimumPplCreFormation[k]
-        else:
-            currentConstant = minimumPplCre[k]
+            if j == 0:
+                currentConstant = minimumPplCreMonday[k]
+            elif j == formationDayIndex:
+                currentConstant = minimumPplCreFormation[k]
+            else:
+                currentConstant = minimumPplCre[k]
 
 
-        if currentConstant == 0:
-            model += lpSum(x[i][j][k] for i in range(n)) == 0
-        else:
-            model += lpSum(x[i][j][k] for i in range(n)) >= currentConstant
+            if currentConstant == 0:
+                model += lpSum(x[i][week][j][k] for i in range(n)) == 0
+            else:
+                model += lpSum(x[i][week][j][k] for i in range(n)) >= currentConstant
 
-            if repartir:
-                model += maxEmployee >= lpSum(x[i][j][k] for i in range(n)) - currentConstant
-            # model += respectedCharge[j][k] >= currentConstant - lpSum(x[i][j][k] for i in range(n))
+                if repartir:
+                    model += maxEmployee >= lpSum(x[i][week][j][k] for i in range(n)) - currentConstant
+                # model += respectedCharge[j][k] >= currentConstant - lpSum(x[i][week][j][k] for i in range(n))
 
 
 #On cree une variable pour indiquer le nombre de demi-heures que travail un employee par jour
-dayHalfHours = LpVariable.dicts("dayHalfHours", (range(n), range(m)), lowBound=0, upBound=o, cat=LpInteger)
+dayHalfHours = LpVariable.dicts("dayHalfHours", (range(n), range(nbWeek), range(m)), lowBound=0, upBound=o, cat=LpInteger)
 for i in range(n):
-    for j in range(m):
-        model += dayHalfHours[i][j] == lpSum(x[i][j][k] for k in range(o))
+    for week in range(nbWeek):
+        for j in range(m):
+            model += dayHalfHours[i][week][j] == lpSum(x[i][week][j][k] for k in range(o))
 
 
 if allowOneMoreHalfHour:
-    sixHoursDay = LpVariable.dicts("sixHoursDay", (range(n), range(m)), cat=LpBinary)
+    sixHoursDay = LpVariable.dicts("sixHoursDay", (range(n), range(nbWeek), range(m)), cat=LpBinary)
     for i in range(n):
-        for j in range(m):
-            #print( maxHalfHoursPerDay[i], maxHalfHoursPerDay[i] - 1)
-            model += sixHoursDay[i][j] >= dayHalfHours[i][j] - (maxHalfHoursPerDay[i] - 1)
+        for week in range(nbWeek):
+            for j in range(m):
+                #print( maxHalfHoursPerDay[i], maxHalfHoursPerDay[i] - 1)
+                model += sixHoursDay[i][week][j] >= dayHalfHours[i][week][j] - (maxHalfHoursPerDay[i] - 1)
 
 
 #On cree une variable pour indiquer si un employee prendra une pause ce jour
-needPause = LpVariable.dicts("needPause", (range(n), range(m)), cat=LpBinary)
-z = LpVariable.dicts("z", (range(n), range(m)), cat=LpBinary)
+needPause = LpVariable.dicts("needPause", (range(n), range(nbWeek), range(m)), cat=LpBinary)
+z = LpVariable.dicts("z", (range(n), range(nbWeek), range(m)), cat=LpBinary)
 for i in range(n):
-    for j in range(m):
-        model += z[i][j] * nbHalfHourToPause >= nbHalfHourToPause - dayHalfHours[i][j]
-        model += needPause[i][j] <= 1 - z[i][j]
-        model += needPause[i][j] * o >= dayHalfHours[i][j] - (nbHalfHourToPause - 1)
+    for week in range(nbWeek):
+        for j in range(m):
 
-        # model += needPause[i][j] * o >= dayHalfHours[i][j] - (nbHalfHourToPause - 1)
-        # model += needPause[i][j] * nbHalfHourToPause <= dayHalfHours[i][j]
+            # if j == formationDayIndex and inFormation[i]:
+            #     model += needPause[i][week][j] == 0
+            #     continue
+
+            model += z[i][week][j] * nbHalfHourToPause >= nbHalfHourToPause - dayHalfHours[i][week][j]
+            model += needPause[i][week][j] <= 1 - z[i][week][j]
+            model += needPause[i][week][j] * o >= dayHalfHours[i][week][j] - (nbHalfHourToPause - 1)
+
+            # model += needPause[i][j] * o >= dayHalfHours[i][j] - (nbHalfHourToPause - 1)
+            # model += needPause[i][j] * nbHalfHourToPause <= dayHalfHours[i][j]
 
 
 #On cree une variable pour indiquer si un employee travail le jour j ou non
 #TODO: try with Z too
-working = LpVariable.dicts("working", (range(n), range(m)), cat=LpBinary)
+working = LpVariable.dicts("working", (range(n), range(nbWeek), range(m)), cat=LpBinary)
 for i in range(n):
-    for j in range(m):
-        model += working[i][j] * maxHalfHoursPerDay[i] >= dayHalfHours[i][j] #For working to be equal to 1 if dayHalfHours is equal to more than 1
-        model += working[i][j] <= dayHalfHours[i][j] #Force working to be equal to 0 if dayHalfHours is equal to 0
+    for week in range(nbWeek):
+        for j in range(m):
+            model += working[i][week][j] * maxHalfHoursPerDay[i] >= dayHalfHours[i][week][j] #For working to be equal to 1 if dayHalfHours is equal to more than 1
+            model += working[i][week][j] <= dayHalfHours[i][week][j] #Force working to be equal to 0 if dayHalfHours is equal to 0
 
 #Variable représentant le nombre de jour travaille pour chaque equipier dans une semaine
 # workingDayInWeek = LpVariable.dicts("workingDayInWeek", (range(n), range(nbWeek)), lowBound=0, upBound=6, cat=LpInteger)
@@ -240,13 +254,14 @@ for i in range(n):
 
 
 #On cree une variable pour indiquer les jours on l'on fait moins que le minimum
-tooLowDay = LpVariable.dicts("tooLowDay", (range(n), range(m)), cat=LpBinary)
+tooLowDay = LpVariable.dicts("tooLowDay", (range(n), range(nbWeek), range(m)), cat=LpBinary)
 for i in range(n):
-    for j in range(m):
-        if j%6 == formationDayIndex:
-            continue
+    for week in range(nbWeek):
+        for j in range(m):
+            if j == formationDayIndex:
+                continue
 
-        model += tooLowDay[i][j] >= (minHalfHourIfWorking - dayHalfHours[i][j]) / minHalfHourIfWorking - (1 - working[i][j])
+            model += tooLowDay[i][week][j] >= (minHalfHourIfWorking - dayHalfHours[i][week][j]) / minHalfHourIfWorking - (1 - working[i][week][j])
 
 #On cree une variable pour indiquer la différence entre le nombre d'heure travaillé et le max. Utilisé pour orienter notre recherche
 # hoursDiff = LpVariable.dicts("hoursDiff", (range(n), range(m)), cat=LpBinary)
@@ -259,80 +274,82 @@ for i in range(n):
 oneBreak = LpVariable.dicts("oneBreak", (range(n), range(nbWeek)), cat=LpBinary)
 for i in range(n):
     for week in range(nbWeek):
-        model += oneBreak[i][week] >= (lpSum(working[i][j] for j in range(week * 6, (week + 1) * 6)) * (1/5)) - 1
+        model += oneBreak[i][week] >= (lpSum(working[i][week][j] for j in range(m)) * (1/5)) - 1
 
 if favoriseBreakNearSunday:
     #Variable qui symbolise la presence d'un congé le lundi ou le samedi
     sundayBreak = LpVariable.dicts("sundayBreak", (range(n), range(nbWeek)), cat=LpBinary)
     for i in range(n):
         for week in range(nbWeek):
-            model += sundayBreak[i][week] >= working[i][0 + week*6] + working[i][5 + week*6] - 1
+            model += sundayBreak[i][week] >= working[i][week][0] + working[i][week][5] - 1
 
-if forceSundayBreak:
-    for i, shouldHaveSunday in enumerate(shoudlForceSunday):
-        if shouldHaveSunday:
-            model += working[i][0 + week*6] + working[i][5 + week*6] - 1 <= 0
+# if forceSundayBreak:
+#     for i, shouldHaveSunday in enumerate(shoudlForceSunday):
+#         if shouldHaveSunday:
+#             for week in range(nbWeek):
+#                 model += working[i][week][0] + working[i][week][5] - 1 <= 0
 
 #On empêche de travailler les gens en formation le mercredi
-j = formationDayIndex
 for i in range(n):
     if inFormation[i]:
         #Pour chaque semaine, on ajoute la contrainte sur le Mecredi
         for week in range(nbWeek):
-            model += lpSum(x[i][week * 6 + j][k] for k in range(0, formationStopHourIndex)) == 0
+            model += lpSum(x[i][week][formationDayIndex][k] for k in range(0, formationStopHourIndex)) == 0
 
 #Here we force employee to start only 1 time (no gape between work hours)
-start = LpVariable.dicts("start", (range(n), range(m), range(o)), cat=LpBinary)
+start = LpVariable.dicts("start", (range(n), range(nbWeek), range(m), range(o)), cat=LpBinary)
 for i in range(n):
-    for j in range(m):
+    for week in range(nbWeek):
+        for j in range(m):
 
-        #Force start to be equal to 1 if precedent hour is 0 and current is 1
-        for k in range(o):
-            if (k == 0):
-                model += start[i][j][k] == x[i][j][k]
-            else:
-                #k - 1 doit valoir 0 et k doit valoir 1 pour que start soit contraint de valoir 1
-                model += start[i][j][k] >= (1 - x[i][j][k-1]) + x[i][j][k] - 1
-        
-        #Constraint the sum of start for 1 day and 1 employee to be less or equal to 1 (or 0 if it's a not working day)
-        model += lpSum(start[i][j][k] for k in range(o)) <= working[i][j]
+            #Force start to be equal to 1 if precedent hour is 0 and current is 1
+            for k in range(o):
+                if (k == 0):
+                    model += start[i][week][j][k] == x[i][week][j][k]
+                else:
+                    #k - 1 doit valoir 0 et k doit valoir 1 pour que start soit contraint de valoir 1
+                    model += start[i][week][j][k] >= (1 - x[i][week][j][k-1]) + x[i][week][j][k] - 1
+            
+            #Constraint the sum of start for 1 day and 1 employee to be less or equal to 1 (or 0 if it's a not working day)
+            model += lpSum(start[i][week][j][k] for k in range(o)) <= working[i][week][j]
 
 #Variable qui indique si un employee fait le break de midi le jour de formation
 doTheBreak = LpVariable.dicts("doTheBreak", (range(n), range(nbWeek)), cat=LpBinary)
 for i in range(n):
     for week in range(nbWeek):
-        model += doTheBreak[i][week] == lpSum(start[i][week * 6 + formationDayIndex][k] for k in range(rushEndIndex, o))
+        model += doTheBreak[i][week] == lpSum(start[i][week][formationDayIndex][k] for k in range(rushEndIndex, o))
 
 
 #Variables qui indique si un employee commence le matin ou l'apres-midi
-startEarly = LpVariable.dicts("startEarly", (range(n), range(m)), cat=LpBinary)
-startLate = LpVariable.dicts("startLate", (range(n), range(m)), cat=LpBinary)
+startEarly = LpVariable.dicts("startEarly", (range(n), range(nbWeek), range(m)), cat=LpBinary)
+startLate = LpVariable.dicts("startLate", (range(n), range(nbWeek), range(m)), cat=LpBinary)
 for i in range(n):
-    for j in range(m):
-        model += startEarly[i][j] == lpSum(start[i][j][k] for k in range(0, earlyEnd))
-        model += startLate[i][j] == lpSum(start[i][j][k] for k in range(rushEndIndex - 1, o))
+    for week in range(nbWeek):
+        for j in range(m):
+            model += startEarly[i][week][j] == lpSum(start[i][week][j][k] for k in range(0, earlyEnd))
+            model += startLate[i][week][j] == lpSum(start[i][week][j][k] for k in range(rushEndIndex - 1, o))
 
-if forceEmployeeNbStart:
-    for i, nbStart in enumerate(nbStartRequired):
-        if nbStart == 0:
-            continue
+# if forceEmployeeNbStart:
+#     for i, nbStart in enumerate(nbStartRequired):
+#         if nbStart == 0:
+#             continue
 
-        model += lpSum(startEarly[i][j] for j in range(m)) >= nbStart
+#         model += lpSum(startEarly[i][week][j] for j in range(m)) >= nbStart
 
 #Forcer les employee qui ont une pause en semaine à ne pas commencer le matin
 for i in range(n):
     for week in range(nbWeek):
-        for j in range(2 + week * 6, (week + 1) * 6):
+        for j in range(2, m):
             #Peut être verifier si il travaillais pas non plus j et j-2
-            model += startLate[i][j-2] + startEarly[i][j] >= (1 - working[i][j-1])
+            model += startLate[i][week][j-2] + startEarly[i][week][j] >= (1 - working[i][week][j-1])
 
-#Chaque employee doit faire extactement son nombre d'heures (on rajoute le nombre de pause = au nombre de jours travaillé)
+#Chaque employee doit faire extactement son nombre d'heures (on rajoute le nombre de pause)
 #TODO: remettre ==
 diffWithContract = LpVariable.dicts("diffWithContract", (range(n), range(nbWeek)), lowBound=0, upBound=10, cat=LpContinuous)
 for i in range(n):
     for week in range(nbWeek):
-        sumOfAllHoursInWeek = lpSum(x[i][j][k] for j in range(week * 6, (week + 1) * 6) for k in range(o))
-        neededPauseInWeek = lpSum(needPause[i][j] for j in range(week * 6, (week + 1) * 6))
+        sumOfAllHoursInWeek = lpSum(x[i][week][j][k] for j in range(m) for k in range(o))
+        neededPauseInWeek = lpSum(needPause[i][week][j] for j in range(m))
 
         removeOnePause = 0
 
@@ -350,132 +367,136 @@ for i in range(n):
 
 #Chaque employee ne peut faire que maxHalfHour demi-heures par jour
 for i in range(n):
-    for j in range(m):
-        week = int(j / 6)
+    for week in range(nbWeek):
+        for j in range(m):
 
-        if j%6 == formationDayIndex and inFormation[i]:
-            # maxHalfHourIcanDo =  # -1 car 30 min de pause pendant la formation et on garde nos 30min si pas de coupure
-            
-            model += lpSum(x[i][j][k] for k in range(o)) <= (maxHalfHoursPerDay[i] - formationStopHourIndex + 1 - doTheBreak[i][week])
+            if j == formationDayIndex and inFormation[i]:
+                # maxHalfHourIcanDo =  # -1 car 30 min de pause pendant la formation et on garde nos 30min si pas de coupure
+                
+                model += lpSum(x[i][week][j][k] for k in range(o)) <= (maxHalfHoursPerDay[i] - formationStopHourIndex + 1 - doTheBreak[i][week])
 
-        else:
-            model += lpSum(x[i][j][k] for k in range(o)) <= maxHalfHoursPerDay[i]
+            else:
+                model += lpSum(x[i][week][j][k] for k in range(o)) <= maxHalfHoursPerDay[i]
 
 
 ### Regle de rush
 
 #Il faut au moins une des personnes de atLeastOneIndex pendant le rush (sauf le jour de formation)
-atLeastOne = LpVariable.dicts("atLeastOne", (range(m), range(rushStartIndex, rushEndIndex)), cat=LpBinary)
+atLeastOne = LpVariable.dicts("atLeastOne", (range(nbWeek), range(m), range(rushStartIndex, rushEndIndex)), cat=LpBinary)
 if atLeastOneIndex:
-    for j in range(m):
-        weekDay = j%6
+    for week in range(nbWeek):
+        for j in range(m):
 
-        if weekDay == formationDayIndex:
-            continue
+            if j == formationDayIndex:
+                continue
 
-        for k in range(rushStartIndex, rushEndIndex):
-            if forceAtLeastOne:
-                model += lpSum(x[i][j][k] for i in atLeastOneIndex) >= 1
-            else:
-                model += atLeastOne[j][k] >= 1 - lpSum(x[i][j][k] for i in atLeastOneIndex)
+            for k in range(rushStartIndex, rushEndIndex):
+                if forceAtLeastOne:
+                    model += lpSum(x[i][week][j][k] for i in atLeastOneIndex) >= 1
+                else:
+                    model += atLeastOne[week][j][k] >= 1 - lpSum(x[i][week][j][k] for i in atLeastOneIndex)
 
 #Impossible de commencer pendant le rush
 for i in range(n):
-    for j in range(m):
+    for week in range(nbWeek):
+        for j in range(m):
 
+            reduceIndex = 0
+            #TODO: voir si on garde le - 1
+            # if j == formationDayIndex:
+            #     reduceIndex = 1
+
+            model += lpSum(start[i][week][j][k] for k in range(rushStartIndex, rushEndIndex - reduceIndex)) == 0
+
+#This magical variable help the program to converge
+presentDuringRush = LpVariable.dicts("presentDuringRush", (range(n), range(nbWeek), range(m), range(rushStartIndex, rushEndIndex)), cat=LpBinary)
+for i in range(n):
+    for week in range(nbWeek):
+        for j in range(m):
+            for k in range(rushStartIndex, rushEndIndex):
+                model += presentDuringRush[i][week][j][k] >= (rushNbOpti - x[i][week][j][k]) / rushNbOpti
+
+missingRush = LpVariable.dicts("missingRush", (range(nbWeek), range(m), range(rushStartIndex, rushEndIndex)), cat=LpBinary)
+for week in range(nbWeek):
+    for j in range(m):
+    
         reduceIndex = 0
-        #TODO: voir si on garde le - 1
         # if j == formationDayIndex:
         #     reduceIndex = 1
 
-        model += lpSum(start[i][j][k] for k in range(rushStartIndex, rushEndIndex - reduceIndex)) == 0
-
-#This magical variable help the program to converge
-presentDuringRush = LpVariable.dicts("presentDuringRush", (range(n), range(m), range(rushStartIndex, rushEndIndex)), cat=LpBinary)
-for i in range(n):
-    for j in range(m):
-        for k in range(rushStartIndex, rushEndIndex):
-            model += presentDuringRush[i][j][k] >= (rushNbOpti - x[i][j][k]) / rushNbOpti
-
-missingRush = LpVariable.dicts("missingRush", (range(m), range(rushStartIndex, rushEndIndex)), cat=LpBinary)
-for j in range(m):
-    
-    reduceIndex = 0
-    # if j == formationDayIndex:
-    #     reduceIndex = 1
-
-    for k in range(rushStartIndex, rushEndIndex - reduceIndex):
-        model += missingRush[j][k] >= (rushNbOpti - lpSum(x[i][j][k] for i in range(n))) / rushNbOpti
+        for k in range(rushStartIndex, rushEndIndex - reduceIndex):
+            model += missingRush[week][j][k] >= (rushNbOpti - lpSum(x[i][week][j][k] for i in range(n))) / rushNbOpti
 
 
 if reduceFormationDay:
-    missingFormation = LpVariable.dicts("missingFormation", (range(m), range(formationReduceStart, formationReduceEnd)), cat=LpBinary)
-    for j in range(m):
-        weekDay = j%6
-        if weekDay == formationDayIndex:
-            for k in range(formationReduceStart, formationReduceEnd):
-                model += missingFormation[j][k] >= ((minimumPplCreFormation[k] + 1) - lpSum(x[i][j][k] for i in range(n))) / (minimumPplCreFormation[k] + 1)
+    missingFormation = LpVariable.dicts("missingFormation", (range(nbWeek), range(m), range(formationReduceStart, formationReduceEnd)), cat=LpBinary)
+    for week in range(nbWeek):
+        for j in range(m):
+            if j == formationDayIndex:
+                for k in range(formationReduceStart, formationReduceEnd):
+                    model += missingFormation[week][j][k] >= ((minimumPplCreFormation[k] + 1) - lpSum(x[i][week][j][k] for i in range(n))) / (minimumPplCreFormation[k] + 1)
 
 
 if allowLateStart:
     for i, whatHourIndex in enumerate(startHour):
         if whatHourIndex != 0:
-            model += lpSum(x[i][j][k] for j in range(m) for k in range(whatHourIndex)) == 0
+            model += lpSum(x[i][week][j][k] for week in range(nbWeek) for j in range(m) for k in range(whatHourIndex)) == 0
 
 
 
 if activateNegativePair:
-    negativePairPresent = LpVariable.dicts("negativePairPresent", (range(len(negativePairs)), range(m), range(o)), cat=LpBinary)
+    negativePairPresent = LpVariable.dicts("negativePairPresent", (range(len(negativePairs)), range(nbWeek), range(m), range(o)), cat=LpBinary)
     for pairIndex, pair in enumerate(negativePairs):
         i1 = pair[0]
         i2 = pair[1]
-        for j in range(m):
-            for k in range(o):
-                model += negativePairPresent[pairIndex][j][k] >= x[i1][j][k] + x[i2][j][k] - 1
+        for week in range(nbWeek):
+            for j in range(m):
+                for k in range(o):
+                    model += negativePairPresent[pairIndex][week][j][k] >= x[i1][week][j][k] + x[i2][week][j][k] - 1
 
 
 started = LpVariable.dicts("started", (range(n), range(nbWeek)), cat=LpBinary)
 finished = LpVariable.dicts("finished", (range(n), range(nbWeek)), cat=LpBinary)
 for i in range(n):
     for week in range(nbWeek):
-        model += started[i][week] * m >= lpSum(startEarly[i][j] for j in range(week * 6, (week + 1) * 6) if j%6 != formationDayIndex)
-        model += finished[i][week] * m >= lpSum(startLate[i][j] for j in range(week * 6, (week + 1) * 6) if j%6 != formationDayIndex)
-
+        model += started[i][week] * m >= lpSum(startEarly[i][week][j] for j in range(m) if j != formationDayIndex)
+        model += finished[i][week] * m >= lpSum(startLate[i][week][j] for j in range(m) if j != formationDayIndex)
+        
 #Contrainte pour forcer un employee a ne faire que le matin ou que l'après midi pendant toute la semaine (sauf le jour de formation)
 if forceSameStartDuringWeek:
     for i in range(n):
         for week in range(nbWeek):
-            model += started[i][week] + finished[i][week] - 1 <= 0
+            model += started[i][week] + finished[i][week] <= 1
 
-if forceEarly:
-    for i, isEarly in enumerate(needStartEarly):
-        if isEarly:
-            model += started[i][0] == 1
+# if forceEarly:
+#     for i, isEarly in enumerate(needStartEarly):
+#         if isEarly:
+#             model += started[i][0] == 1
 
-if forceLate:
-    for i, isLate in enumerate(needStartLate):
-        if isLate:
-            model += finished[i][0] == 1
+# if forceLate:
+#     for i, isLate in enumerate(needStartLate):
+#         if isLate:
+#             model += finished[i][0] == 1
 
 #Contrainte pour forcer les personnes ont des imperatifs à ne pas être là
-if activateRestrictions:
+# if activateRestrictions:
 
-    #Pour ceux qui doivent finir avant tel heure
-    for i, pplEndRestrictions in enumerate(endBefore):
-        for endRestriction in pplEndRestrictions:
-            j = endRestriction[0]
-            startingRestriction = endRestriction[1]
-            #On force x[i][j][k] à valoir 0 de startingRestriction à la fin
-            model += lpSum(x[i][j][k] for k in range(startingRestriction, o)) == 0
+#     #Pour ceux qui doivent finir avant tel heure
+#     for i, pplEndRestrictions in enumerate(endBefore):
+#         for endRestriction in pplEndRestrictions:
+#             j = endRestriction[0]
+#             startingRestriction = endRestriction[1]
+#             #On force x[i][j][k] à valoir 0 de startingRestriction à la fin
+#             model += lpSum(x[i][j][k] for k in range(startingRestriction, o)) == 0
 
-    #Pour ceux qui sont absent pendant une range
-    for i, pplRangeRestrictions in enumerate(absentRange):
-        for rangeRestriction in pplRangeRestrictions:
-            j = rangeRestriction[0]
-            startingRestriction = rangeRestriction[1]
-            endingRestriction = rangeRestriction[2]
-            #On force x[i][j][k] à valoir 0 de startingRestriction à endingRestriction
-            model += lpSum(x[i][j][k] for k in range(startingRestriction, endingRestriction)) == 0
+#     #Pour ceux qui sont absent pendant une range
+#     for i, pplRangeRestrictions in enumerate(absentRange):
+#         for rangeRestriction in pplRangeRestrictions:
+#             j = rangeRestriction[0]
+#             startingRestriction = rangeRestriction[1]
+#             endingRestriction = rangeRestriction[2]
+#             #On force x[i][j][k] à valoir 0 de startingRestriction à endingRestriction
+#             model += lpSum(x[i][j][k] for k in range(startingRestriction, endingRestriction)) == 0
 
 
 #Objective
@@ -489,24 +510,24 @@ objectiveFunc = LpAffineExpression()
 objectiveFunc += lpSum(oneBreak[i][week] for i in range(n) for week in range(nbWeek)) * 100000000000 #Mendatory
 objectiveFunc += lpSum(diffWithContract[i][week] for i in range(n) for week in range(nbWeek)) * 1000000000 #Mendatory
 
-objectiveFunc += lpSum(tooLowDay[i][j] for i in range(n) for j in range(m)) * 1000000 #Can be discussed
-objectiveFunc += lpSum(missingRush[j][k] for j in range(m) for k in range(rushStartIndex, rushEndIndex)) * 10000 #Can be discussed
+objectiveFunc += lpSum(tooLowDay[i][week][j] for i in range(n) for week in range(nbWeek) for j in range(m)) * 1000000 #Can be discussed
+objectiveFunc += lpSum(missingRush[week][j][k] for week in range(nbWeek) for j in range(m) for k in range(rushStartIndex, rushEndIndex)) * 10000 #Can be discussed
 
 if atLeastOneIndex and not forceAtLeastOne:
-    objectiveFunc += lpSum(atLeastOne[j][k] for j in range(m) for k in range(rushStartIndex, rushEndIndex)) * 10000000
+    objectiveFunc += lpSum(atLeastOne[week][j][k] for week in range(nbWeek) for j in range(m) for k in range(rushStartIndex, rushEndIndex)) * 10000000
 
 if allowOneMoreHalfHour:
-    objectiveFunc += lpSum(sixHoursDay[i][j] for i in range(n) for j in range(m)) * 1000000
+    objectiveFunc += lpSum(sixHoursDay[i][week][j] for i in range(n) for week in range(nbWeek) for j in range(m)) * 1000000
 
 if reduceFormationDay:
-    objectiveFunc += lpSum(missingFormation[j][k] for j in range(m) for k in range(formationReduceStart, formationReduceEnd)) * 1
+    objectiveFunc += lpSum(missingFormation[week][j][k] for week in range(nbWeek) for j in range(m) for k in range(formationReduceStart, formationReduceEnd)) * 1
 
 if favoriseBreakNearSunday:
     objectiveFunc += lpSum(sundayBreak[i][week] for i in range(n) for week in range(nbWeek)) * 10
 
 
 if activateNegativePair:
-    objectiveFunc += lpSum(negativePairPresent[pairIndex][j][k] for pairIndex in range(len(negativePairs)) for j in range(m) for k in range(o)) * 100
+    objectiveFunc += lpSum(negativePairPresent[pairIndex][week][j][k] for pairIndex in range(len(negativePairs)) for week in range(nbWeek) for j in range(m) for k in range(o)) * 100
 
 if repartir:
     objectiveFunc += maxEmployee * (1/10)
@@ -548,30 +569,30 @@ employeeHours = []
 
 for i in range(n):
 
-    for week in range(nbWeek):
-        print(f"{pplName[i]}: weekNb={week}, nbPause: {oneBreak[i][week].value()}")
-        print(f"{pplName[i]}: Diff with contract: {diffWithContract[i][week].value()}")
-        print(f"Have sundayBreak: {sundayBreak[i][week].value()} -> >= {working[i][0 + week*6].value()} + {working[i][5 + week*6].value()} - 1")
+    # for week in range(nbWeek):
+    #     print(f"{pplName[i]}: weekNb={week}, nbPause: {oneBreak[i][week].value()}")
+    #     print(f"{pplName[i]}: Diff with contract: {diffWithContract[i][week].value()}")
+    #     print(f"Have sundayBreak: {sundayBreak[i][week].value()}")
 
-        for j in range(m):
-            print(f"{j}: {startEarly[i][j].value()}, working: {working[i][j].value()}")
+    #     for j in range(m):
+    #         print(f"{j}: {startEarly[i][week][j].value()}, working: {working[i][j].value()}")
 
-        sumOfAllHoursInWeek = 0
-        neededPauseInWeek = 0
-        for j in range(week * 6, (week + 1) * 6):
-            for k in range(o):
-                sumOfAllHoursInWeek += x[i][j][k].value()
+    #     sumOfAllHoursInWeek = 0
+    #     neededPauseInWeek = 0
+    #     for j in range(week * 6, (week + 1) * 6):
+    #         for k in range(o):
+    #             sumOfAllHoursInWeek += x[i][j][k].value()
 
-            neededPauseInWeek += needPause[i][j].value()
+    #         neededPauseInWeek += needPause[i][j].value()
 
-        print(f"{diffWithContract[i][week].value()} >= ({pplWeekHours[i] * 2} + {neededPauseInWeek}) - {sumOfAllHoursInWeek}")
-        print(f"{diffWithContract[i][week].value()} >= {sumOfAllHoursInWeek} - ({pplWeekHours[i] * 2} + {neededPauseInWeek})")
+    #     print(f"{diffWithContract[i][week].value()} >= ({pplWeekHours[i] * 2} + {neededPauseInWeek}) - {sumOfAllHoursInWeek}")
+    #     print(f"{diffWithContract[i][week].value()} >= {sumOfAllHoursInWeek} - ({pplWeekHours[i] * 2} + {neededPauseInWeek})")
 
 
-        # for j in range(week * 6, (week + 1) * 6):
-        #     print(f"{j}: sixHoursDay = {sixHoursDay[i][j].value()}", f"DayHalfHour = {dayHalfHours[i][j].value()}")
+    #     # for j in range(week * 6, (week + 1) * 6):
+    #     #     print(f"{j}: sixHoursDay = {sixHoursDay[i][j].value()}", f"DayHalfHour = {dayHalfHours[i][j].value()}")
 
-        # print(f"WorkingDay in week: {workingDayInWeek[i][week].value()}")
+    #     # print(f"WorkingDay in week: {workingDayInWeek[i][week].value()}")
 
     employeeHours.append([])
     for j in range(m):
@@ -608,24 +629,24 @@ print("one break: ",  sum(oneBreak[i][week].value() for i in range(n) for week i
 
 print("diff With Contract: ", sum(diffWithContract[i][week].value() for i in range(n) for week in range(nbWeek)))
 
-print("missing Rush: ", sum(missingRush[j][k].value() for j in range(m) for k in range(rushStartIndex, rushEndIndex)))
-print("too Low Day: ", sum(tooLowDay[i][j].value() for i in range(n) for j in range(m)))
+print("missing Rush: ", sum(missingRush[week][j][k].value() for week in range(nbWeek) for j in range(m) for k in range(rushStartIndex, rushEndIndex)))
+print("too Low Day: ", sum(tooLowDay[i][week][j].value() for i in range(n) for week in range(nbWeek) for j in range(m)))
 
 if atLeastOneIndex and not forceAtLeastOne:
-    print("at least one: ", sum(atLeastOne[j][k].value() for j in range(m) for k in range(rushStartIndex, rushEndIndex)))
+    print("at least one: ", sum(atLeastOne[week][j][k].value() for week in range(nbWeek) for j in range(m) for k in range(rushStartIndex, rushEndIndex)))
 
 if allowOneMoreHalfHour:
-    print("six Hours Day: ", sum(sixHoursDay[i][j].value() for i in range(n) for j in range(m)))
+    print("six Hours Day: ", sum(sixHoursDay[i][week][j].value() for i in range(n) for week in range(nbWeek) for j in range(m)))
 
 if reduceFormationDay:
-    print("missing Formation: ", sum(missingFormation[j][k].value() for j in range(m) for k in range(formationReduceStart, formationReduceEnd)))
+    print("missing Formation: ", sum(missingFormation[week][j][k].value() for week in range(nbWeek) for j in range(m) for k in range(formationReduceStart, formationReduceEnd)))
 
 if favoriseBreakNearSunday:
     print("sunday Break: ", sum(sundayBreak[i][week].value() for i in range(n) for week in range(nbWeek)))
 
 
 if activateNegativePair:
-    print("negative Pair Present: ", sum(negativePairPresent[pairIndex][j][k].value() for pairIndex in range(len(negativePairs)) for j in range(m) for k in range(o)))
+    print("negative Pair Present: ", sum(negativePairPresent[pairIndex][week][j][k].value() for pairIndex in range(len(negativePairs)) for week in range(nbWeek) for j in range(m) for k in range(o)))
 
 if repartir:
     print("Max employee: ", maxEmployee.value())
