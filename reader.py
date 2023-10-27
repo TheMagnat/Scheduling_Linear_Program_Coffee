@@ -21,8 +21,10 @@ def stringToDate(dateString):
         if len(datePair) < 2:
             print("Erreur de format de date :", dateString)
 
-        ret[-1].append(dayToIndex[datePair[0]])
-        for hour in datePair[1:]:
+        ret[-1].append(int(datePair[0]) - 1)
+        ret[-1].append(dayToIndex[datePair[1]])
+        for hour in datePair[2:]:
+            print(hour.lower(), hoursToIndex[hour.lower()])
             ret[-1].append(hoursToIndex[hour.lower()])
 
     return ret
@@ -40,10 +42,10 @@ def readFile(fileName):
 
     inFormation = [name.value == 'Oui' for name in data['3'][1:]]
     startHour = [hoursToIndex[name.value] for name in data['4'][1:]]
-    shoudlForceSunday = [name.value == 'Oui' for name in data['5'][1:]]
-    needStartEarly = [name.value == 'Oui' for name in data['6'][1:]] 
-    needStartLate = [name.value == 'Oui' for name in data['7'][1:]]
+    # shoudlForceSunday = [name.value == 'Oui' for name in data['5'][1:]]
+    # needStartEarly = [name.value == 'Oui' for name in data['6'][1:]] 
+    # needStartLate = [name.value == 'Oui' for name in data['7'][1:]]
     endBefore = [stringToDate(name.value) for name in data['8'][1:]]
     absentRange = [stringToDate(name.value) for name in data['9'][1:]]
 
-    return pplName, pplWeekHours, maxHalfHoursPerDay, inFormation, startHour, shoudlForceSunday, needStartEarly, needStartLate, endBefore, absentRange
+    return pplName, pplWeekHours, maxHalfHoursPerDay, inFormation, startHour, endBefore, absentRange

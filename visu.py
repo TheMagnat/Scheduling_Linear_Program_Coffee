@@ -18,16 +18,6 @@ def visualize(employeeHours, employeeNames):
 
     plt.gca().invert_yaxis()
 
-    # Example data
-    working_hours = {
-        0: [[9, 10, 13.5], [9, 10, 13]],
-        1: [[10, 11, 12, 13]],
-        2: [[9, 10, 11, 12, 13]],
-        3: [[11, 12, 13]],
-        4: [[9, 10, 11, 12, 13]],
-        5: [[9, 10, 11, 12, 13]]
-    }
-
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
     for i, employee in enumerate(employeeHours):
