@@ -1,8 +1,9 @@
 
 from pulp import LpMinimize, LpMaximize, LpProblem, LpStatus, lpSum, LpVariable, LpBinary, LpInteger, LpContinuous, LpConstraint, LpAffineExpression, PULP_CBC_CMD
+import numpy as np
 
 #Global parameters
-maxExecutionTime = 15
+maxExecutionTime = 120
 allowOneMoreHalfHour = True
 favoriseBreakNearSunday = True
 repartir = True
@@ -400,6 +401,11 @@ class WeekLP:
     def solve(self):
         # Solve the problem
         status = self.model.solve(PULP_CBC_CMD(maxSeconds=maxExecutionTime))
+
+        #If the objective value is greater than 1000000000, it means that the solution violate a mendatory constraint
+        if status == 1 and self.model.objective.value() >= 1000000000:
+            status = 0
+
         return status, self.model.objective.value()
 
     def printObjectives(self):
@@ -431,21 +437,24 @@ class WeekLP:
         if repartir:
             print("Max employee: ", self.maxEmployee.value())
 
+        print("Total score:", self.model.objective.value())
 
+    #Return 1 if got the Sunday break, 0 if not
     def getSundays(self):
-        sundays = []
+        sundays = np.empty(self.n, dtype=int)
         for i in range(self.n):
-            sundays.append( self.sundayBreak[i].value() )
+            sundays[i] = 1 - self.sundayBreak[i].value()
                 
         return sundays
 
+    #Return 0 if i started, 1 if i finished
     def getStarting(self):
-        starting = []
+        starting = np.empty(self.n, dtype=int)
         for i in range(self.n):
             if self.started[i].value() == 1:
-                starting.append(0)
+                starting[i] = 0
             elif self.finished[i].value() == 1:
-                starting.append(1)
+                starting[i] = 1
             else:
                 print("ERROR")
                 

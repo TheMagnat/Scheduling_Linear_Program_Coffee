@@ -5,6 +5,10 @@ from helper import convert2dWeekDayAndHours
 from visu import visualize
 from weekLP import WeekLP, WeekData
 
+import numpy as np
+
+from itertools import chain, combinations
+
 ### Param
 maxExecutionTime = 120
 rushOneMore = False
@@ -65,7 +69,7 @@ for i, isInFormation in enumerate(inFormation):
 
 
 #Pour forcer une personne à arriver plus tard
-startHour = [0, 0, 0, 0, 0, 7, 0]
+# startHour = [0, 0, 0, 0, 0, 7, 0]
 
 #Pour forcer un employee à commencer n fois pendant la semaine
 # forceEmployeeNbStart = False
@@ -74,7 +78,7 @@ startHour = [0, 0, 0, 0, 0, 7, 0]
 
 #Pour forcer un employee à avoir son lundi ou son samedi
 # forceSundayBreak = True
-shouldForceSunday = [False, False, False, False, False, False, False]
+# shouldForceSunday = [False, False, False, False, False, False, False]
 
 
 #Pour indiquer la non presence d'une personne à parti/jusqu'a une certaine heure
@@ -85,12 +89,13 @@ activateRestrictions = False
 # absentRange = [[], [["Lundi", "10h30", "14h30"]], [], [], [["Lundi", "14h", "16h30"], ["Samedi", "14h", "16h30"]], [], []]
 # absentRange = convert2dDayAndHours(absentRange, dayToIndex, hoursToIndex)
 
-currentWeek = 1
+# currentWeek = 1
 
 #To generate the restriction for the current week
-endBefore = []
-absentRange = []
-if activateRestrictions:
+# if activateRestrictions:
+def generateRestrictions(currentWeek):
+    endBefore = []
+    absentRange = []
     for i, pplEndRestrictions in enumerate(fullEndBefore):
         endBefore.append([])
         for endRestriction in pplEndRestrictions:
@@ -102,6 +107,8 @@ if activateRestrictions:
         for rangeRestriction in pplRangeRestrictions:
             if rangeRestriction[0] == currentWeek:
                 absentRange[-1].append(rangeRestriction[1:])
+
+    return endBefore, absentRange
 
 # print(fullEndBefore)
 # print(fullAbsentRange)
@@ -118,8 +125,8 @@ needStartEarly = [False, False, False, False, False, False, False]
 forceLate = True
 needStartLate = [False, False, False, False, False, False, False]
 
-print(endBefore)
-print(absentRange)
+# print(endBefore)
+# print(absentRange)
 
 # exit(0)
 
@@ -159,52 +166,118 @@ OK - exeptionnellement 6h
 OK - 1 jour de congé par semaine,
 OK - favoriser de le coller au dimanche
 """
+nbWeeks = 4
+
+
+class WeekIterationInformation:
+
+    def __init__(self, doneSundays):
+        self.doneSundays = doneSundays
+
+    def generateNextForcedSundaysSubset(self):
+        
+        missingSundays = []
+        for i, nbSundays in enumerate(self.doneSundays):
+            if nbSundays == 0:
+                missingSundays.append(i)
+
+        if len(missingSundays) == 0:
+            self.sundaysSubset = [[]]
+            return
+
+        self.sundaysSubset = [list(elem) for elem in chain.from_iterable(list(combinations(missingSundays, r)) for r in range(len(missingSundays)+1))]
+
+    def storeLP(self, lp):
+        self.lp = lp
+
+
+def generateForceSundayArray(pplToForceSunday, n):
+    forceSunday = [False] * n
+    for ppl in pplToForceSunday:
+        forceSunday[ppl] = True
+    return forceSunday
 
 weekData = WeekData(minimumPplCre, minimumPplCreMonday, minimumPplCreFormation)
 
-# Create the model
-lp = WeekLP()
+n = len(pplName) #Nb Employee
+doneSundays = np.zeros(n, dtype=int)
+weeksInfo = [WeekIterationInformation(doneSundays)]
+# forceSunday = [False] * n
 
-lp.generate(weekData, pplWeekHours, maxHalfHoursPerDay, inFormation, startHour, endBefore, absentRange, shouldForceSunday, needStartEarly, needStartLate)
+#We prepare first week info
+weeksInfo[0].sundaysSubset = [[]]
 
-
-#Objective
-# model += lpSum(x[i][j][k] for i in range(n) for j in range(m) for k in range(o))
-# model += lpSum(working[i][j] for i in range(n) for j in range(m)) / n
-# model += 
-
-
-
-    #    + lpSum(respectedCharge[j][k] for j in range(m) for k in range(o)) * 10000000 \
-
-    #    + lpSum(presentDuringRush[i][j][k] for i in range(n) for j in range(m) for k in range(rushStartIndex, rushEndIndex)) \
+currentWeek = 0
+success = False
 
 
+while True:
 
-       
- #Pour essayer de ne manquer de personne pendant le rush
- #Pour essayer de ne manquer de personne pendant le rush
-# + lpSum(hoursDiff[i][j] for i in range(n) for j in range(m)) \
+    status = 0
+    while status != 1 and weeksInfo[-1].sundaysSubset:
 
-# print(model)
+        pplToForceSunday = weeksInfo[-1].sundaysSubset.pop()
+        #TODO: Ne plus regarder ceux qui sont à 0, mais qui sont a la valeur minimale de l'array
+        forceSunday = generateForceSundayArray(pplToForceSunday, n)
 
-status, objectiveValue = lp.solve()
+        endBefore, absentRange = generateRestrictions(currentWeek)
 
-print(f"status: {status}, {LpStatus[status]}")
-print(f"objective: {objectiveValue}")
-
-if status != 1:
-    exit(0)
-
-
-employeeHours = lp.getScheduling()
-
-lp.printObjectives()
-
-print(employeeHours)
+        # Create the model
+        lp = WeekLP()
+        lp.generate(weekData, pplWeekHours, maxHalfHoursPerDay, inFormation, startHour, endBefore, absentRange, forceSunday, needStartEarly, needStartLate)
 
 
-print(lp.getSundays())
-print(lp.getStarting())
+        status, objectiveValue = lp.solve()
 
-visualize(employeeHours, pplName)
+        print(f"status: {status}, {LpStatus[status]}")
+        print(f"objective: {objectiveValue}")
+
+        lp.printObjectives()
+
+    if not status:
+        print("Could not find a solution...")
+
+        currentWeek -= 1
+        weeksInfo.pop()
+
+        if not weeksInfo:
+            success = False
+            break
+        
+        doneSundays -= weeksInfo[-1].lp.getSundays()
+        weeksInfo[-1].lp = None
+
+        continue
+
+    #We store the LP
+    weeksInfo[-1].storeLP(lp)
+
+    #We update the number of sundays done
+    doneSundays += weeksInfo[-1].lp.getSundays()
+
+    print("Accepted LP !")
+    print("Sundays:", weeksInfo[-1].lp.getSundays(), "done sundays:", doneSundays)
+    # print("Starting: ", weeksInfo[-1].getStarting())
+
+    currentWeek += 1
+    if currentWeek >= nbWeeks:
+        success = True
+        break
+
+    #We generate the next week iteration information
+    weeksInfo.append( WeekIterationInformation(doneSundays) )
+
+    #We generate the next subset of sundays to force
+    weeksInfo[-1].generateNextForcedSundaysSubset()
+    # weekAccepted = True
+
+if not success:
+    print("Failed to find a solution. Please try with a greater time limit.")
+
+else:
+    for info in weeksInfo:
+        info.lp.printObjectives()
+        employeeHours = info.lp.getScheduling()
+        print(employeeHours)
+
+        visualize(employeeHours, pplName)
