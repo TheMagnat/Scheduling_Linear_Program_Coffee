@@ -176,9 +176,12 @@ class WeekIterationInformation:
 
     def generateNextForcedSundaysSubset(self):
         
+        #Get the minimum value, and create a set force ppl with the less sundays to take it
+        miniValue = self.doneSundays.min()
+
         missingSundays = []
         for i, nbSundays in enumerate(self.doneSundays):
-            if nbSundays == 0:
+            if nbSundays == miniValue:
                 missingSundays.append(i)
 
         if len(missingSundays) == 0:
@@ -186,6 +189,8 @@ class WeekIterationInformation:
             return
 
         self.sundaysSubset = [list(elem) for elem in chain.from_iterable(list(combinations(missingSundays, r)) for r in range(len(missingSundays)+1))]
+
+        #TODO: Mettre dans un ordre intéréssant (3, 2, 4, 1, 5... ???) / empêcher les set trop grand avec valeur paramétrable (3 par défaut ?) (je préfère ça)
 
     def storeLP(self, lp):
         self.lp = lp
